@@ -1,3 +1,4 @@
+/* eslint-disable  @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 
 export function InstallPrompt() {
@@ -27,7 +28,7 @@ export function InstallPrompt() {
             {" "}
             ⎋{" "}
           </span>
-          and then "Add to Home Screen"
+          and then `&quot;`Add to Home Screen`&quot;`
           <span role="img" aria-label="plus icon">
             {" "}
             ➕{" "}
