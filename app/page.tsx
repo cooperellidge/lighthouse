@@ -246,7 +246,6 @@ export default function GymTimer() {
           </div>
         )}
       </div>
-      <InstallPrompt />
     </div>
   );
 }
