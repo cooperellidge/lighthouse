@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/NumberInput";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { InstallPrompt } from "@/components/InstallPrompt";
 
 const ALARM_SOUND_URL =
   "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
