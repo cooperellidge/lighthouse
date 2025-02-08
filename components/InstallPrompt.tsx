@@ -1,41 +1,58 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
+"use client";
+
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
+
+const isIos = () => {
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+  );
+};
+
+const isInStandaloneMode = () => {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    ("standalone" in navigator && (navigator as any).standalone)
+  );
+};
 
 export function InstallPrompt() {
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    setIsIOS(
-      /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
-    );
-
-    setIsStandalone(window.matchMedia("(display-mode: standalone)").matches);
+    if (isIos() && !isInStandaloneMode()) {
+      const dismissed = localStorage.getItem("iosInstallPromptDismissed");
+      if (!dismissed) {
+        setShowPrompt(true);
+      }
+    }
   }, []);
 
-  if (isStandalone) {
-    return null; // Don't show install button if already installed
-  }
+  const handleClose = () => {
+    setShowPrompt(false);
+    localStorage.setItem("iosInstallPromptDismissed", "true");
+  };
+
+  if (!showPrompt) return null;
 
   return (
-    <div>
-      <h3>Install App</h3>
-      <button>Add to Home Screen</button>
-      {isIOS && (
-        <p>
-          To install this app on your iOS device, tap the share button
-          <span role="img" aria-label="share icon">
-            {" "}
-            ⎋{" "}
-          </span>
-          and then `&quot;`Add to Home Screen`&quot;`
-          <span role="img" aria-label="plus icon">
-            {" "}
-            ➕{" "}
-          </span>
-          .
+    <div className="fixed bottom-4 left-4 right-4 bg-lighthouse-gold text-lighthouse-blue p-4 rounded-xl shadow-lg flex items-center justify-between z-50 animate-slide-up">
+      <div className="flex-1 mr-4">
+        <p className="font-bold">Install Lighthouse Timer</p>
+        <p className="text-sm">
+          Tap the share icon and select "Add to Home Screen".
         </p>
-      )}
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleClose}
+        className="text-lighthouse-blue hover:bg-lighthouse-blue/10"
+      >
+        <X className="w-5 h-5" />
+      </Button>
     </div>
   );
 }
