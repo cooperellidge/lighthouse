@@ -1,3 +1,3 @@
 # Lighthouse
 
-React Native app for a timer to be used in gym classes.
+Timer for Lighthouse classes.
