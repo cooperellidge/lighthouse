@@ -42,7 +42,7 @@ export function InstallPrompt() {
       <div className="flex-1 mr-4">
         <p className="font-bold">Install Lighthouse Timer</p>
         <p className="text-sm">
-          Tap the share icon and select "Add to Home Screen".
+          Tap the share icon and select `&quot;`Add to Home Screen`&quot;`.
         </p>
       </div>
       <Button
