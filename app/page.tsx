@@ -77,9 +77,12 @@ export default function GymTimer() {
       audioRef.current
         .play()
         .then(() => {
-          audioRef.current?.pause(); // Immediately pause after playing to "unlock" it
-          audioRef.current.currentTime = 0;
-          audioUnlockedRef.current = true; // Mark audio as unlocked
+          // Check if audioRef.current is still not null after the promise resolves
+          if (audioRef.current) {
+            audioRef.current.pause(); // Pause immediately after playing
+            audioRef.current.currentTime = 0; // Reset to the start
+            audioUnlockedRef.current = true; // Mark audio as unlocked
+          }
         })
         .catch((error) => console.error("Error unlocking audio:", error));
     }
