@@ -3,6 +3,7 @@ import { DM_Serif_Display } from "next/font/google";
 import { Bebas_Neue } from "next/font/google";
 import "./globals.css";
 import type React from "react";
+import { Metadata } from "next";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -20,6 +21,12 @@ const bebas = Bebas_Neue({
   subsets: ["latin"],
   variable: "--font-bebas",
 });
+
+export const metadata: Metadata = {
+  title: "Lighthouse",
+  description: "Gym class timer",
+  manifest: "/lighthouse/manifest.json",
+};
 
 export default function RootLayout({
   children,

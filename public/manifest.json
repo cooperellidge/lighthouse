@@ -15,7 +15,7 @@
       "purpose": "maskable any"
     }
   ],
-  "start_url": "/",
+  "start_url": "/lighthouse",
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
   "display": "standalone"
