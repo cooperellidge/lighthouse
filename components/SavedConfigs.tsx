@@ -54,8 +54,8 @@ export function SavedConfigs({
     setConfigs(updatedConfigs);
     if (typeof window !== "undefined") {
       localStorage.setItem("timerConfigs", JSON.stringify(updatedConfigs));
+      setNewConfigName("");
     }
-    setNewConfigName("");
   };
 
   const deleteConfig = (id: string) => {

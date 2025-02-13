@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/NumberInput";
 import { SavedConfigs, TimerConfig } from "@/components/SavedConfigs";
 import { ChevronDown, ChevronUp, Share, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const ALARM_SOUND_URL =
   "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
+const BEEP_SOUND_URL =
+  "https://assets.mixkit.co/active_storage/sfx/1082/1082-preview.mp3";
 
 export default function GymTimer() {
   const [sets, setSets] = useState(3);
@@ -22,13 +25,40 @@ export default function GymTimer() {
   const [isBreakMinutes, setIsBreakMinutes] = useState(false);
   const [showInputs, setShowInputs] = useState(true);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [enableTenSecondBeep, setEnableTenSecondBeep] = useState(true);
+  const [enableCountdownBeep, setEnableCountdownBeep] = useState(true);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUnlockedRef = useRef(false); // To track if audio is "unlocked"
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const alarmBufferRef = useRef<AudioBuffer | null>(null);
+  const beepBufferRef = useRef<AudioBuffer | null>(null);
+  const scheduledSoundsRef = useRef<number[]>([]);
 
   useEffect(() => {
-    audioRef.current = new Audio(ALARM_SOUND_URL);
-    audioRef.current.load(); // Preload audio
+    // Create and store the AudioContext (including legacy support for iOS)
+    audioContextRef.current = new (window.AudioContext ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).webkitAudioContext)();
+
+    const loadSound = async (
+      url: string,
+      bufferRef: React.MutableRefObject<AudioBuffer | null>
+    ) => {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioContextRef.current!.decodeAudioData(
+        arrayBuffer
+      );
+      bufferRef.current = audioBuffer;
+    };
+
+    loadSound(ALARM_SOUND_URL, alarmBufferRef);
+    loadSound(BEEP_SOUND_URL, beepBufferRef);
+
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -45,23 +75,91 @@ export default function GymTimer() {
     }
   }, []);
 
+  const playSound = useCallback((buffer: AudioBuffer, time: number) => {
+    if (audioContextRef.current) {
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContextRef.current.destination);
+      source.start(time);
+      return source;
+    }
+    return null;
+  }, []);
+
+  const scheduleSound = useCallback(
+    (buffer: AudioBuffer, delay: number) => {
+      if (audioContextRef.current) {
+        const playTime = audioContextRef.current.currentTime + delay;
+        const source = playSound(buffer, playTime);
+        if (source) {
+          // Instead of using a non-existent property, store the scheduled play time
+          scheduledSoundsRef.current.push(playTime);
+        }
+      }
+    },
+    [playSound]
+  );
+
+  const clearScheduledSounds = useCallback(() => {
+    const audioContext = audioContextRef.current;
+    if (!audioContext) return;
+
+    scheduledSoundsRef.current.forEach((time) => {
+      if (time > audioContext.currentTime) {
+        const source = audioContext.createBufferSource();
+        // Use one of the loaded buffers (beep or alarm) arbitrarily to create a dummy source
+        source.buffer = beepBufferRef.current || alarmBufferRef.current!;
+        source.connect(audioContext.destination);
+        source.start(time);
+        source.stop(time);
+      }
+    });
+    scheduledSoundsRef.current = [];
+  }, []);
+
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
     if (isActive && timeLeft > 0) {
       interval = setInterval(() => {
-        setTimeLeft((time) => time - 1);
+        setTimeLeft((time) => {
+          const newTime = time - 1;
+
+          if (
+            audioContextRef.current &&
+            beepBufferRef.current &&
+            alarmBufferRef.current
+          ) {
+            // Schedule sounds slightly ahead of time
+            const scheduleAheadTime = 0.1; // 100ms ahead
+
+            // 10-second warning
+            if (newTime === 10 && enableTenSecondBeep) {
+              scheduleSound(beepBufferRef.current, scheduleAheadTime);
+            }
+            // 3-second countdown
+            else if (
+              (newTime === 3 || newTime === 2 || newTime === 1) &&
+              enableCountdownBeep
+            ) {
+              scheduleSound(beepBufferRef.current, scheduleAheadTime);
+            }
+            // Alarm at the end
+            else if (newTime === 0) {
+              scheduleSound(alarmBufferRef.current, scheduleAheadTime);
+            }
+          }
+
+          return newTime;
+        });
       }, 1000);
     } else if (isActive && timeLeft === 0) {
-      if (audioRef.current && audioUnlockedRef.current) {
-        audioRef.current
-          .play()
-          .catch((error) => console.error("Error playing audio:", error));
-      }
+      clearScheduledSounds();
       if (isBreak) {
         if (currentSet < sets) {
           setIsBreak(false);
-          setTimeLeft(isDurationMinutes ? duration * 60 : duration);
+          const newDuration = isDurationMinutes ? duration * 60 : duration;
+          setTimeLeft(newDuration);
           setCurrentSet((set) => set + 1);
         } else {
           setIsActive(false);
@@ -69,12 +167,14 @@ export default function GymTimer() {
         }
       } else {
         setIsBreak(true);
-        setTimeLeft(isBreakMinutes ? breakTime * 60 : breakTime);
+        const newBreakTime = isBreakMinutes ? breakTime * 60 : breakTime;
+        setTimeLeft(newBreakTime);
       }
     }
 
     return () => {
       if (interval) clearInterval(interval);
+      clearScheduledSounds();
     };
   }, [
     isActive,
@@ -86,33 +186,33 @@ export default function GymTimer() {
     breakTime,
     isDurationMinutes,
     isBreakMinutes,
+    enableTenSecondBeep,
+    enableCountdownBeep,
+    scheduleSound,
+    clearScheduledSounds,
   ]);
 
-  const unlockAudio = () => {
-    if (audioRef.current && !audioUnlockedRef.current) {
-      audioRef.current
-        .play()
-        .then(() => {
-          // Check if audioRef.current is still not null after the promise resolves
-          if (audioRef.current) {
-            audioRef.current.pause(); // Pause immediately after playing
-            audioRef.current.currentTime = 0; // Reset to the start
-            audioUnlockedRef.current = true; // Mark audio as unlocked
-          }
-        })
-        .catch((error) => console.error("Error unlocking audio:", error));
+  // Mark toggleTimer as async so we can unlock the AudioContext first.
+  const toggleTimer = async () => {
+    // Ensure the AudioContext is unlocked on iOS Safari via a user gesture.
+    if (
+      audioContextRef.current &&
+      audioContextRef.current.state === "suspended"
+    ) {
+      try {
+        await audioContextRef.current.resume();
+      } catch (error) {
+        console.error("Error resuming AudioContext:", error);
+      }
     }
-  };
-
-  const toggleTimer = () => {
-    unlockAudio(); // Unlock audio on first user interaction
 
     if (!isActive && currentSet === 0) {
-      setTimeLeft(isDurationMinutes ? duration * 60 : duration);
+      const newDuration = isDurationMinutes ? duration * 60 : duration;
+      setTimeLeft(newDuration);
       setCurrentSet(1);
       setShowInputs(false);
     }
-    setIsActive(!isActive);
+    setIsActive((prev) => !prev);
   };
 
   const resetTimer = () => {
@@ -121,6 +221,7 @@ export default function GymTimer() {
     setTimeLeft(0);
     setIsBreak(false);
     setShowInputs(true);
+    clearScheduledSounds();
   };
 
   const formatTime = (time: number) => {
@@ -219,6 +320,40 @@ export default function GymTimer() {
                   >
                     {isBreakMinutes ? "MIN" : "SEC"}
                   </Button>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-center space-x-2">
+                  <Checkbox
+                    id="tenSecondBeep"
+                    checked={enableTenSecondBeep}
+                    onCheckedChange={(checked) =>
+                      setEnableTenSecondBeep(checked as boolean)
+                    }
+                    className="data-[state=checked]:bg-lighthouse-gold"
+                  />
+                  <Label
+                    htmlFor="tenSecondBeep"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-lighthouse-gold font-display uppercase"
+                  >
+                    Play 10s warning
+                  </Label>
+                </div>
+                <div className="flex items-center justify-center space-x-2">
+                  <Checkbox
+                    id="countdownBeep"
+                    checked={enableCountdownBeep}
+                    onCheckedChange={(checked) =>
+                      setEnableCountdownBeep(checked as boolean)
+                    }
+                    className="data-[state=checked]:bg-lighthouse-gold"
+                  />
+                  <Label
+                    htmlFor="countdownBeep"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-lighthouse-gold font-display uppercase"
+                  >
+                    Play 3s countdown
+                  </Label>
                 </div>
               </div>
             </div>
