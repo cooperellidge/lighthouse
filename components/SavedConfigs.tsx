@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Save, X, BookMarked, ChevronUp } from "lucide-react";
@@ -24,13 +24,17 @@ export function SavedConfigs({
   currentConfig,
   onLoadConfig,
 }: SavedConfigsProps) {
-  const [configs, setConfigs] = useState<TimerConfig[]>(() => {
-    const saved = localStorage.getItem("timerConfigs");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [configs, setConfigs] = useState<TimerConfig[]>([]);
   const [showMenu, setShowMenu] = useState(false);
   const [newConfigName, setNewConfigName] = useState("");
   const [nameError, setNameError] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("timerConfigs");
+      setConfigs(saved ? JSON.parse(saved) : []);
+    }
+  }, [setConfigs]);
 
   const saveConfig = () => {
     const name = newConfigName.trim() || `TIMER ${configs.length + 1}`;
@@ -48,14 +52,18 @@ export function SavedConfigs({
     };
     const updatedConfigs = [...configs, newConfig];
     setConfigs(updatedConfigs);
-    localStorage.setItem("timerConfigs", JSON.stringify(updatedConfigs));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("timerConfigs", JSON.stringify(updatedConfigs));
+    }
     setNewConfigName("");
   };
 
   const deleteConfig = (id: string) => {
     const updatedConfigs = configs.filter((config) => config.id !== id);
     setConfigs(updatedConfigs);
-    localStorage.setItem("timerConfigs", JSON.stringify(updatedConfigs));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("timerConfigs", JSON.stringify(updatedConfigs));
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
